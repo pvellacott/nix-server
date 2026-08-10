@@ -135,6 +135,7 @@
     "d /srv/media/downloads 2775 phil media -"
     "d /srv/media/movies 2775 phil media -"
     "d /srv/media/tv 2775 phil media -"
+    "d /srv/media/music 2775 phil media -"
   ];
 
   services.samba = {
@@ -167,9 +168,31 @@
     openFirewall = true;
   };
 
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    openFirewall = true;
+    publish = {
+      enable = true;
+      addresses = true;
+      workstation = true;
+    };
+  };
+
   services.jellyfin = {
     enable = true;
     openFirewall = true;
+  };
+
+  services.navidrome = {
+    enable = true;
+    openFirewall = true;
+    group = "media";
+    settings = {
+      Address = "0.0.0.0";
+      Port = 4533;
+      MusicFolder = "/srv/media/music";
+    };
   };
 
   services.sonarr = {
@@ -196,6 +219,22 @@
     webuiPort = 8080;
   };
 
+  services.sabnzbd = {
+    enable = true;
+    openFirewall = true;
+    allowConfigWrite = true;
+    group = "media";
+    settings.misc = {
+      host = "0.0.0.0";
+      port = 8081;
+      inet_exposure = "api+web (auth needed)";
+    };
+  };
+
+  services.uptime-kuma = {
+    enable = true;
+  };
+
   services.homepage-dashboard = {
     enable = true;
     listenPort = 8082;
@@ -210,41 +249,70 @@
         "Media" = [
           {
             "Jellyfin" = {
-              href = "http://pooseyhub:8096";
+              href = "http://pooseyhub.local:8096";
               description = "Movies, TV, and music";
               icon = "jellyfin.png";
+            };
+          }
+          {
+            "Navidrome" = {
+              href = "http://pooseyhub.local:4533";
+              description = "Music streaming";
+              icon = "navidrome.png";
             };
           }
         ];
       }
       {
-        "Downloadurs" = [
+        "Yoink" = [
           {
             "Sonarr" = {
-              href = "http://pooseyhub:8989";
+              href = "http://pooseyhub.local:8989";
               description = "TV show automation";
               icon = "sonarr.png";
             };
           }
           {
             "Radarr" = {
-              href = "http://pooseyhub:7878";
+              href = "http://pooseyhub.local:7878";
               description = "Movie automation";
               icon = "radarr.png";
             };
           }
           {
             "Prowlarr" = {
-              href = "http://pooseyhub:9696";
+              href = "http://pooseyhub.local:9696";
               description = "Indexer management";
               icon = "prowlarr.png";
             };
           }
+        ];
+      }
+      {
+        "Downloadur" = [
           {
             "qBittorrent" = {
-              href = "http://pooseyhub:8080";
+              href = "http://pooseyhub.local:8080";
               description = "Torrent downloads";
               icon = "qbittorrent.png";
+            };
+          }
+          {
+            "SABnzbd" = {
+              href = "http://pooseyhub.local:8081";
+              description = "Usenet downloads";
+              icon = "sabnzbd.png";
+            };
+          }
+        ];
+      }
+      {
+        "Services" = [
+          {
+            "Uptime Kuma" = {
+              href = "http://pooseyhub.local:3001";
+              description = "Service monitoring";
+              icon = "uptime-kuma.png";
             };
           }
         ];
@@ -265,7 +333,7 @@
     };
   };
 
-  networking.firewall.allowedTCPPorts = [ 22 80 7878 8080 8096 8989 9696 ];
+  networking.firewall.allowedTCPPorts = [ 22 80 3001 4533 7878 8080 8096 8989 9696 ];
   users.groups.media = {};
   users.users.jellyfin.extraGroups = [ "media" ];
   users.users.phil = {
