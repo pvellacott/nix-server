@@ -4,6 +4,15 @@
 
 { config, lib, pkgs, ... }:
 
+let
+  unstable = import (builtins.fetchTarball "https://github.com/NixOS/nixpkgs/archive/nixos-unstable.tar.gz") {
+    system = pkgs.stdenv.hostPlatform.system;
+    config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
+      "unrar"
+    ];
+  };
+in
+
 {
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
     "unrar"
@@ -135,8 +144,11 @@
   # rememba...
   # /srv/media/movies, /srv/media/tv, /srv/media/music.
   systemd.tmpfiles.rules = [
+    "d /srv/homepage 0755 phil media -"
     "d /srv/media 2775 phil media -"
     "d /srv/media/downloads 2775 phil media -"
+    "d /srv/media/immich 0700 immich media -"
+    "d /srv/media/photos 2775 phil media -"
     "d /srv/media/movies 2775 phil media -"
     "d /srv/media/tv 2775 phil media -"
     "d /srv/media/music 2775 phil media -"
@@ -157,6 +169,15 @@
       };
       media = {
         "path" = "/srv/media";
+        "browseable" = "yes";
+        "read only" = "no";
+        "valid users" = "phil";
+        "force group" = "media";
+        "create mask" = "0664";
+        "directory mask" = "2775";
+      };
+      photos = {
+        "path" = "/srv/media/photos";
         "browseable" = "yes";
         "read only" = "no";
         "valid users" = "phil";
@@ -186,6 +207,16 @@
   services.jellyfin = {
     enable = true;
     openFirewall = true;
+  };
+
+  services.immich = {
+    enable = true;
+    package = unstable.immich;
+    host = "0.0.0.0";
+    port = 2283;
+    openFirewall = true;
+    mediaLocation = "/srv/media/immich";
+    group = "media";
   };
 
   services.navidrome = {
@@ -223,20 +254,19 @@
     webuiPort = 8080;
   };
 
-  services.sabnzbd = {
+  services.nzbget = {
     enable = true;
-    openFirewall = true;
-    allowConfigWrite = true;
     group = "media";
-    settings.misc = {
-      host = "0.0.0.0";
-      port = 8081;
-      inet_exposure = "api+web (auth needed)";
+    settings = {
+      ControlIP = "0.0.0.0";
+      ControlPort = 8081;
+      MainDir = "/srv/media/downloads";
     };
   };
 
   services.uptime-kuma = {
     enable = true;
+    settings.HOST = "0.0.0.0";
   };
 
   services.homepage-dashboard = {
@@ -247,7 +277,31 @@
       title = "Ghil Server";
       theme = "dark";
       color = "slate";
+      background = {
+        image = "/images/background.webp";
+        blur = "sm";
+        opacity = 65;
+      };
+      cardBlur = "sm";
     };
+    widgets = [
+      {
+        resources = {
+          expanded = true;
+          cpu = true;
+          memory = true;
+          uptime = true;
+          refresh = 1000;
+          disk = "/";
+        };
+      }
+    ];
+    customCSS = ''
+      #information-widgets,
+      .information-widgets {
+        gap: 1rem;
+      }
+    '';
     services = [
       {
         "Media" = [
@@ -256,6 +310,13 @@
               href = "http://pooseyhub.local:8096";
               description = "Movies, TV, and music";
               icon = "jellyfin.png";
+            };
+          }
+          {
+            "Immich" = {
+              href = "http://pooseyhub.local:2283";
+              description = "Photo backup";
+              icon = "immich.png";
             };
           }
           {
@@ -302,10 +363,10 @@
             };
           }
           {
-            "SABnzbd" = {
+            "NZBGet" = {
               href = "http://pooseyhub.local:8081";
               description = "Usenet downloads";
-              icon = "sabnzbd.png";
+              icon = "nzbget.png";
             };
           }
         ];
@@ -329,15 +390,21 @@
     recommendedProxySettings = true;
     virtualHosts = {
       "pooseyhub.home" = {
+        locations."/images/".extraConfig = ''
+          alias /srv/homepage/;
+        '';
         locations."/".proxyPass = "http://127.0.0.1:8082";
       };
       "pooseyhub" = {
+        locations."/images/".extraConfig = ''
+          alias /srv/homepage/;
+        '';
         locations."/".proxyPass = "http://127.0.0.1:8082";
       };
     };
   };
 
-  networking.firewall.allowedTCPPorts = [ 22 80 3001 4533 7878 8080 8096 8989 9696 ];
+  networking.firewall.allowedTCPPorts = [ 22 80 3001 4533 7878 8080 8081 8096 8989 9696 ];
   users.groups.media = {};
   users.users.jellyfin.extraGroups = [ "media" ];
   users.users.phil = {
