@@ -34,7 +34,7 @@ in
   networking.nameservers = [ "1.1.1.1" "1.0.0.1" ];
 
   # Set your time zone.
-  # time.timeZone = "Europe/Amsterdam";
+  time.timeZone = "Pacific/Auckland";
 
   # Configure network proxy if necessary
   # networking.proxy.default = "http://user:password@proxy:port/";
@@ -50,9 +50,6 @@ in
 
   # Enable the X11 windowing system.
   # services.xserver.enable = true;
-
-
-  
 
   # Configure keymap in X11
   # services.xserver.xkb.layout = "us";
@@ -72,24 +69,6 @@ in
   # Enable touchpad support (enabled default in most desktopManager).
   # services.libinput.enable = true;
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
-  # users.users.alice = {
-  #   isNormalUser = true;
-  #   extraGroups = [ "wheel" ]; # Enable ‘sudo’ for the user.
-  #   packages = with pkgs; [
-  #     tree
-  #   ];
-  # };
-
-  # programs.firefox.enable = true;
-
-  # List packages installed in system profile.
-  # You can use https://search.nixos.org/ to find more packages (and options).
-  # environment.systemPackages = with pkgs; [
-  #   vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-  #   wget
-  # ];
-
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
   # programs.mtr.enable = true;
@@ -98,40 +77,7 @@ in
   #   enableSSHSupport = true;
   # };
 
-  # List services that you want to enable:
 
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
-
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
-  # networking.firewall.enable = false;
-
-  # Copy the NixOS configuration file and link it from the resulting system
-  # (/run/current-system/configuration.nix). This is useful in case you
-  # accidentally delete configuration.nix.
-  # system.copySystemConfiguration = true;
-
-  # This option defines the first version of NixOS you have installed on this particular machine,
-  # and is used to maintain compatibility with application data (e.g. databases) created on older NixOS versions.
-  #
-  # Most users should NEVER change this value after the initial install, for any reason,
-  # even if you've upgraded your system to a new NixOS release.
-  #
-  # This value does NOT affect the Nixpkgs version your packages and OS are pulled from,
-  # so changing it will NOT upgrade your system - see https://nixos.org/manual/nixos/stable/#sec-upgrading for how
-  # to actually do that.
-  #
-  # This value being lower than the current NixOS release does NOT mean your system is
-  # out of date, out of support, or vulnerable.
-  #
-  # Do NOT change this value unless you have manually inspected all the changes it would make to your configuration,
-  # and migrated your data accordingly.
-  #
-  # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
- 
  services.openssh = {
     enable = true;
     ports = [ 22 ]; #TODO change port and make secret
@@ -142,7 +88,7 @@ in
   };
 
   # rememba...
-  # /srv/media/movies, /srv/media/tv, /srv/media/music.
+  # look here for file paths
   systemd.tmpfiles.rules = [
     "d /srv/homepage 0755 phil media -"
     "d /srv/media 2775 phil media -"
@@ -269,14 +215,32 @@ in
     settings.HOST = "0.0.0.0";
   };
 
+  services.forgejo = {
+    enable = true;
+    database.type = "sqlite3";
+    settings = {
+      DEFAULT.APP_NAME = "Phil's Forge";
+      server = {
+        HTTP_ADDR = "127.0.0.1";
+        HTTP_PORT = 3000;
+        DOMAIN = "pooseyhub.local";
+        ROOT_URL = "http://pooseyhub.local/git/";
+      };
+      service = {
+        REGISTER_EMAIL_CONFIRM = false;
+      };
+    };
+  };
+
   services.homepage-dashboard = {
     enable = true;
     listenPort = 8082;
     allowedHosts = "*";
     settings = {
-      title = "Ghil Server";
+      title = "Smoo's Server";
       theme = "dark";
       color = "slate";
+      hideVersion = true;
       background = {
         image = "/images/background.webp";
         blur = "sm";
@@ -285,6 +249,16 @@ in
       cardBlur = "sm";
     };
     widgets = [
+      {
+        datetime = {
+          text_size = "xl";
+          locale = "en-NZ";
+          format = {
+            dateStyle = "medium";
+            timeStyle = "short";
+          };
+        };
+      }
       {
         resources = {
           expanded = true;
@@ -297,9 +271,12 @@ in
       }
     ];
     customCSS = ''
-      #information-widgets,
       .information-widgets {
         gap: 1rem;
+      }
+
+      .information-widget-resource:last-child .resource-usage {
+        display: none;
       }
     '';
     services = [
@@ -380,6 +357,13 @@ in
               icon = "uptime-kuma.png";
             };
           }
+          {
+            "Forgejo" = {
+              href = "http://pooseyhub.local/git/";
+              description = "Git hosting";
+              icon = "forgejo.png";
+            };
+          }
         ];
       }
     ];
@@ -389,16 +373,18 @@ in
     enable = true;
     recommendedProxySettings = true;
     virtualHosts = {
-      "pooseyhub.home" = {
+      "pooseyhub.local" = {
         locations."/images/".extraConfig = ''
           alias /srv/homepage/;
         '';
+        locations."/git/".proxyPass = "http://127.0.0.1:3000/";
         locations."/".proxyPass = "http://127.0.0.1:8082";
       };
       "pooseyhub" = {
         locations."/images/".extraConfig = ''
           alias /srv/homepage/;
         '';
+        locations."/git/".proxyPass = "http://127.0.0.1:3000/";
         locations."/".proxyPass = "http://127.0.0.1:8082";
       };
     };
@@ -411,7 +397,23 @@ in
     isNormalUser = true;
     extraGroups = [ "wheel" "media" ];
   };
-      
+
+  # Copy the NixOS configuration file and link it from the resulting system
+  # (/run/current-system/configuration.nix). This is useful in case you
+  # accidentally delete configuration.nix.
+  # system.copySystemConfiguration = true;
+  # This option defines the first version of NixOS you have installed on this particular machine,
+  # and is used to maintain compatibility with application data (e.g. databases) created on older NixOS versions.
+  # Most users should NEVER change this value after the initial install, for any reason,
+  # even if you've upgraded your system to a new NixOS release.
+  # This value does NOT affect the Nixpkgs version your packages and OS are pulled from,
+  # so changing it will NOT upgrade your system - see https://nixos.org/manual/nixos/stable/#sec-upgrading for how
+  # to actually do that.
+  # This value being lower than the current NixOS release does NOT mean your system is
+  # out of date, out of support, or vulnerable.
+  # Do NOT change this value unless you have manually inspected all the changes it would make to your configuration,
+  # and migrated your data accordingly.
+  # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
   system.stateVersion = "26.05"; # Did you read the comment?
 
 }
